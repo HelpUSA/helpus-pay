@@ -26,3 +26,6 @@ jobs:
 
     - name: Run Sandbox PIX Service Tests
       run: npx tsx test/pix_service.test.mjs
+
+    - name: Run G3-B loopback-only HTTP mock tests
+      run: npx tsx test/g3b_http_pay.test.mjs
