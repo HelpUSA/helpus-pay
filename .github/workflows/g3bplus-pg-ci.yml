@@ -34,6 +34,13 @@ jobs:
           persist-credentials: false
       - name: Install isolated pg driver (no changes to deployed app)
         run: npm install --prefix sandbox/g3bplus --ignore-scripts --no-fund
+      - name: Extract isolated test dependency lockfile to review before pinning
+        run: |
+          echo G3BPLUS_LOCK_BEGIN
+          sha256sum sandbox/g3bplus/package-lock.json
+          base64 -w 960 sandbox/g3bplus/package-lock.json | sed 's/^/G3BPLUS_LOCK_B64 /'
+          echo G3BPLUS_LOCK_END
+
       - name: Enforce isolated pg driver audit
         run: npm audit --prefix sandbox/g3bplus --audit-level=moderate
       - name: PostgreSQL 16 transactional lab negative and restart tests
