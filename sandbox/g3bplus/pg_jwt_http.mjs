@@ -93,7 +93,7 @@ export async function createG3BPlusPgHttpApp({ store, authBaseUrl, callbackUrl =
       }
       if (action === 'drain') {
         // In-memory callback implementation is forbidden: PG outbox always decides delivery.
-        const out = await store.drainSyntheticCallbackOnce(async payload => {
+        const out = await store.drainSyntheticCallbackOnce(tenantId, async payload => {
           if (!callbackUrl) return false;
           const data = {
             event: 'PIX_RECEIVED', eventId: payload.eventId,
