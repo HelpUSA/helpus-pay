@@ -83,7 +83,7 @@ export async function createG3BPlusPgHttpApp({ store, authBaseUrl, callbackUrl =
       }
       if (action === 'cancel') {
         const out = await store.cancel(tenantId, chargeRoute[1]);
-        return send(res, 200, out);
+        return send(res, out.cannotCancel ? 409 : 200, out);
       }
       if (action === 'settle') {
         const out = await store.settle({ tenantId, txid: input.txid,
@@ -99,7 +99,7 @@ export async function createG3BPlusPgHttpApp({ store, authBaseUrl, callbackUrl =
             event: 'PIX_RECEIVED', eventId: payload.eventId,
             data: { tenantId: payload.tenantId, orderId: payload.orderId,
               txid: payload.txid, amount: payload.paidAmount, status: 'PAID',
-              paidAt: new Date().toISOString() }
+              paidAt: payload.paidAt }
           };
           const raw = JSON.stringify(data);
           const sig = crypto.createHmac('sha256', mockCallbackSecret).update(raw).digest('hex');
