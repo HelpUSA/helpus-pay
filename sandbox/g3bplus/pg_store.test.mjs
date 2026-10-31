@@ -4,8 +4,9 @@ import crypto from 'node:crypto';
 import { G3BPlusPgStore } from './pg_store.mjs';
 
 process.env.HELPUS_G3BPLUS_LOCAL_ONLY = '1';
+// A port must be explicitly supplied by the disposable database fixture; never fall back to host 5432.
 const credentials = {
-  host: '127.0.0.1', port: Number(process.env.G3BPLUS_PG_PORT || '5432'),
+  host: '127.0.0.1', port: Number(process.env.G3BPLUS_PG_PORT),
   database: process.env.G3BPLUS_PG_DB || 'g3bplus_lab',
   user: process.env.G3BPLUS_PG_USER || 'g3bplus_lab',
   password: process.env.G3BPLUS_PG_PASSWORD || 'g3bplus_local_test_only_password'
