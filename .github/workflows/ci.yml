@@ -34,3 +34,11 @@ jobs:
       run: |
         npm audit --json > /tmp/g3b-npm-audit.json || true
         node -e 'const fs=require("fs"); let a; try { a=JSON.parse(fs.readFileSync("/tmp/g3b-npm-audit.json","utf8")); } catch(e) { console.log("AUDIT_JSON_UNREADABLE", e.message); process.exit(0); } console.log("AUDIT_COUNTS", JSON.stringify(a.metadata?.vulnerabilities || {})); for(const [name, v] of Object.entries(a.vulnerabilities || {})) { console.log("AUDIT_FINDING", JSON.stringify({name,severity:v.severity,isDirect:v.isDirect,range:v.range,via:v.via?.map(x=>typeof x==="string"?x:{name:x.name,title:x.title,range:x.range,url:x.url}),fixAvailable:v.fixAvailable})); }'
+      - name: Generate patched npm lockfile in ephemeral runner for review (no push)
+        run: |
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
+          echo G3B_LOCK_SHA256_BEGIN
+          sha256sum package-lock.json
+          echo G3B_LOCK_DATA_BEGIN
+          base64 -w 960 package-lock.json | sed 's/^/G3B_LOCK_B64 /'
+          echo G3B_LOCK_DATA_END
