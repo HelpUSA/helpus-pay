@@ -1,0 +1,50 @@
+name: G3-B+ isolated PostgreSQL durable lab
+on:
+  push:
+    branches: ['feat/g3bplus-*']
+  pull_request:
+    branches: ['feat/g3bplus-*']
+jobs:
+  pg-lab:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: g3bplus_lab
+          POSTGRES_USER: g3bplus_lab
+          POSTGRES_PASSWORD: g3bplus_local_test_only_password
+        ports: [55432:5432]
+        options: >-
+          --health-cmd "pg_isready -U g3bplus_lab -d g3bplus_lab"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Checkout public Auth Ed25519 lab issuer at pinned SHA
+        uses: actions/checkout@v4
+        with:
+          repository: HelpUSA/helpus-auth
+          ref: 4a99f6b954e32ef0cc3a57554007ad37f9f826cc
+          path: _g3bplus_auth
+          persist-credentials: false
+      - name: Install isolated pg driver (no changes to deployed app)
+        run: npm ci --prefix sandbox/g3bplus --ignore-scripts --no-fund
+      - name: Enforce isolated pg driver audit
+        run: npm audit --prefix sandbox/g3bplus --audit-level=moderate
+      - name: PostgreSQL 16 transactional lab negative and restart tests
+        env:
+          NODE_ENV: test
+          HELPUS_G3BPLUS_LOCAL_ONLY: '1'
+          AUTH_REPO_PATH: ${{ github.workspace }}/_g3bplus_auth
+          G3BPLUS_PG_PORT: '55432'
+          G3BPLUS_PG_DB: g3bplus_lab
+          G3BPLUS_PG_USER: g3bplus_lab
+          G3BPLUS_PG_PASSWORD: g3bplus_local_test_only_password
+        run: |
+          node --test sandbox/g3bplus/pg_store.test.mjs
+          node --test sandbox/g3bplus/pg_jwt_http.test.mjs
