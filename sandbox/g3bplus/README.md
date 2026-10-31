@@ -11,3 +11,9 @@
 - Nested `package-lock.json` makes the isolated PostgreSQL driver deterministic; root frontend dependencies are unchanged.
 
 **Remaining operational P0:** identity lifecycle, network deployment model, independent tenants/DB roles, backup/restore, retention, worker leases under real failures, observability, PSP verification, refund governance and risk/security signoff. G3-C is NOT authorized.
+
+## Configurable disposable PostgreSQL test port (Order 019 follow-up)
+
+The CI job maps its **temporary PostgreSQL 16 container** to host port **55432**, not the conventional 5432, and sets `G3BPLUS_PG_PORT=55432`. Both `pg_store.test.mjs` and `pg_jwt_http.test.mjs` now explicitly use this variable, including the second simulated-restart connection. No automatic fallback to 5432 is permitted in these test entrypoints. Never point them at an existing host PostgreSQL service, even if a compatible user/database seems available. Tests need an independently provisioned **ephemeral** localhost database named `g3bplus_*` with a synthetic `g3bplus_*` account; otherwise report the database tests **BLOCKED** and run the standalone JWT/npx checks only.
+
+The durable callback outbox enforces tenant-scoped claims and manual-review acknowledgements. A callback worker authenticated for one tenant is prohibited from consuming another tenant's event. This is a sandbox security invariant, not a real banking outbox worker.
