@@ -29,3 +29,8 @@ jobs:
 
     - name: Run G3-B loopback-only HTTP mock tests
       run: npx tsx test/g3b_http_pay.test.mjs
+
+    - name: Inspect npm dependency advisories (diagnostic only)
+      run: |
+        npm audit --json > /tmp/g3b-npm-audit.json || true
+        node -e 'const fs=require("fs"); let a; try { a=JSON.parse(fs.readFileSync("/tmp/g3b-npm-audit.json","utf8")); } catch(e) { console.log("AUDIT_JSON_UNREADABLE", e.message); process.exit(0); } console.log("AUDIT_COUNTS", JSON.stringify(a.metadata?.vulnerabilities || {})); for(const [name, v] of Object.entries(a.vulnerabilities || {})) { console.log("AUDIT_FINDING", JSON.stringify({name,severity:v.severity,isDirect:v.isDirect,range:v.range,via:v.via?.map(x=>typeof x==="string"?x:{name:x.name,title:x.title,range:x.range,url:x.url}),fixAvailable:v.fixAvailable})); }'
