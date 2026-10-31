@@ -173,12 +173,12 @@ export class G3BPlusPgStore {
     return q.rows.map(r => ({ eventId: r.event_id, tenantId: r.tenant_id, kind: r.kind,
       status: r.status, attempts: r.attempts }));
   }
-  async drainSyntheticCallbackOnce(send) {
-    guard();
+  async drainSyntheticCallbackOnce(tenantId, send) {
+    guard(); validTenant(tenantId);
     if (typeof send !== 'function') throw Error('INVALID_SYNTHETIC_CALLBACK');
     let row;
     await transaction(this.pool, async c => {
-      const r = await c.query("SELECT * FROM g3lab_outbox WHERE kind='CALLBACK' AND (status='PENDING' OR (status='IN_PROGRESS' AND claimed_at < now() - interval '30 seconds')) ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1");
+      const r = await c.query("SELECT * FROM g3lab_outbox WHERE tenant_id=$1 AND kind='CALLBACK' AND (status='PENDING' OR (status='IN_PROGRESS' AND claimed_at < now() - interval '30 seconds')) ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1", [tenantId]);
       if (!r.rowCount) return;
       row = r.rows[0];
       await c.query("UPDATE g3lab_outbox SET status='IN_PROGRESS',attempts=attempts+1,claimed_at=now() WHERE id=$1", [row.id]);
@@ -190,9 +190,9 @@ export class G3BPlusPgStore {
       [ok ? 'DELIVERED' : 'PENDING', ok ? null : 'SYNTHETIC_CALLBACK_FAILED', row.id]);
     return { handled: true, delivered: ok, eventId: row.event_id };
   }
-  async acknowledgeManualReview(eventId) {
-    guard(); validId(eventId);
-    const r = await this.pool.query("UPDATE g3lab_outbox SET status='MANUAL_REVIEW' WHERE event_id=$1 AND kind='MANUAL_REVIEW' AND status='PENDING' RETURNING id", [eventId]);
+  async acknowledgeManualReview(tenantId, eventId) {
+    guard(); validTenant(tenantId); validId(eventId);
+    const r = await this.pool.query("UPDATE g3lab_outbox SET status='MANUAL_REVIEW' WHERE event_id=$1 AND tenant_id=$2 AND kind='MANUAL_REVIEW' AND status='PENDING' RETURNING id", [eventId, tenantId]);
     return r.rowCount === 1;
   }
   async close() { await this.pool.end(); }
