@@ -55,8 +55,18 @@ export class G3BPlusPgStore {
   }
   async get(tenantId, txid) {
     guard(); validTenant(tenantId); validId(txid);
-    const r = await this.pool.query('SELECT * FROM g3lab_charges WHERE tenant_id=$1 AND txid=$2', [tenantId, txid]);
-    return shape(r.rows[0]);
+    return transaction(this.pool, async conn => {
+      const r = await conn.query('SELECT * FROM g3lab_charges WHERE tenant_id=$1 AND txid=$2 FOR UPDATE', [tenantId, txid]);
+      const ch = r.rows[0];
+      if (!ch) return null;
+      if (ch.status === 'PENDING' && ch.expires_at.getTime() <= Date.now()) {
+        await conn.query("UPDATE g3lab_charges SET status='EXPIRED' WHERE txid=$1", [txid]);
+        await conn.query("UPDATE g3lab_orders SET status='EXPIRED' WHERE tenant_id=$1 AND order_id=$2 AND status='WAITING_PAYMENT'",
+          [tenantId, ch.order_id]);
+        ch.status = 'EXPIRED';
+      }
+      return shape(ch);
+    });
   }
   async getOrder(tenantId, orderId) {
     guard(); validTenant(tenantId); validId(orderId);
@@ -100,9 +110,13 @@ export class G3BPlusPgStore {
       const ch = r.rows[0];
       await c.query('SELECT 1 FROM g3lab_orders WHERE tenant_id=$1 AND order_id=$2 FOR UPDATE', [tenantId, ch.order_id]);
       if (ch.status === 'CANCELLED') return { status: 'CANCELLED', idempotent: true };
-      if (ch.status !== 'PENDING' || ch.expires_at.getTime() <= Date.now()) {
-        throw Error('CANNOT_CANCEL_' + (ch.expires_at.getTime() <= Date.now() && ch.status === 'PENDING' ? 'EXPIRED' : ch.status));
+      if (ch.status === 'PENDING' && ch.expires_at.getTime() <= Date.now()) {
+        await c.query("UPDATE g3lab_charges SET status='EXPIRED' WHERE txid=$1", [txid]);
+        await c.query("UPDATE g3lab_orders SET status='EXPIRED' WHERE tenant_id=$1 AND order_id=$2 AND status='WAITING_PAYMENT'",
+          [tenantId, ch.order_id]);
+        return { status: 'EXPIRED', cannotCancel: true };
       }
+      if (ch.status !== 'PENDING') throw Error('CANNOT_CANCEL_' + ch.status);
       await c.query("UPDATE g3lab_charges SET status='CANCELLED' WHERE txid=$1", [txid]);
       await c.query("UPDATE g3lab_orders SET status='CANCELLED' WHERE tenant_id=$1 AND order_id=$2", [tenantId, ch.order_id]);
       return { status: 'CANCELLED', idempotent: false };
@@ -128,12 +142,19 @@ export class G3BPlusPgStore {
       const expired = ch.expires_at.getTime() <= Date.now();
       let outcome, kind;
       if (ch.status === 'PENDING' && !expired) {
-        await c.query("UPDATE g3lab_charges SET status='PAID',paid_at=now() WHERE txid=$1", [txid]);
-        await c.query("UPDATE g3lab_orders SET status='PAID',paid_at=now() WHERE tenant_id=$1 AND order_id=$2", [tenantId, ch.order_id]);
+        const paidAt = new Date().toISOString();
+        await c.query("UPDATE g3lab_charges SET status='PAID',paid_at=$2 WHERE txid=$1", [txid, paidAt]);
+        await c.query("UPDATE g3lab_orders SET status='PAID',paid_at=$3 WHERE tenant_id=$1 AND order_id=$2",
+          [tenantId, ch.order_id, paidAt]);
         kind = 'CALLBACK';
-        outcome = { success: true, action: 'PAID', tenantId, orderId: ch.order_id, txid };
+        outcome = { success: true, action: 'PAID', tenantId, orderId: ch.order_id, txid, paidAt };
       } else if (allowLateBankEvent && (ch.status === 'CANCELLED' || ch.status === 'EXPIRED' || expired)) {
         // Synthetic report of an after-cancel bank event; NEVER marks order PAID and NEVER issues a refund.
+        if (ch.status === 'PENDING' && expired) {
+          await c.query("UPDATE g3lab_charges SET status='EXPIRED' WHERE txid=$1", [txid]);
+          await c.query("UPDATE g3lab_orders SET status='EXPIRED' WHERE tenant_id=$1 AND order_id=$2 AND status='WAITING_PAYMENT'",
+            [tenantId, ch.order_id]);
+        }
         kind = 'MANUAL_REVIEW';
         outcome = { success: false, action: 'REQUIRES_MANUAL_REVIEW', tenantId, orderId: ch.order_id, txid };
       } else {
