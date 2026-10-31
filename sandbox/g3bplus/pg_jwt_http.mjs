@@ -113,8 +113,9 @@ export async function createG3BPlusPgHttpApp({ store, authBaseUrl, callbackUrl =
         return send(res, 200, out);
       }
     } catch (e) {
-      return send(res, e.status || code(e), { ok: false, code: e.status || code(e) === 500 ?
-        (e.status ? e.message : 'LAB_INTERNAL_ERROR') : e.message });
+      const status = e.status || code(e);
+      return send(res, status, { ok: false,
+        code: status >= 500 ? 'LAB_INTERNAL_ERROR' : e.message });
     }
   });
   return {
