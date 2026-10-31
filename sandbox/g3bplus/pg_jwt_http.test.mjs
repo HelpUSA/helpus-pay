@@ -114,6 +114,20 @@ try {
     assert.equal((await pay('GET','charges/'+ch.txid,token)).body.status,'EXPIRED');
     assert.equal((await store.getOrder(tenant,ch.orderId)).status,'EXPIRED');
   });
+  await test('valid bank JWT for tenant B cannot drain pending tenant A callback', async () => {
+    const charge = await createCharge();
+    const eventId = 'evt_' + x();
+    const settled = await pay('POST', 'settle', bankToken, tenant,
+      { txid: charge.txid, eventId, paidAmount: 45 });
+    assert.equal(settled.status, 200);
+    const otherBankToken = await getToken('tenant_pizzaria', 'pay', ['callback:send']);
+    const denied = await pay('POST', 'drain', otherBankToken, 'tenant_pizzaria');
+    assert.equal(denied.status, 200);
+    assert.equal(denied.body.handled, false);
+    const own = (await store.outbox()).find(v => v.eventId === eventId);
+    assert.equal(own.tenantId, tenant);
+    assert.equal(own.status, 'PENDING');
+  });
   await test('a separate database connection can read the JWT-created charge after web handlers exit', async () => {
     const c = await createCharge();
     const secondary = new G3BPlusPgStore({
