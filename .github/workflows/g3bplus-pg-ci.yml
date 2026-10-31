@@ -40,7 +40,7 @@ jobs:
         env:
           NODE_ENV: test
           HELPUS_G3BPLUS_LOCAL_ONLY: '1'
-          AUTH_REPO_PATH: ${'${{ github.workspace }}'}/_g3bplus_auth
+          AUTH_REPO_PATH: ${{ github.workspace }}/_g3bplus_auth
           G3BPLUS_PG_DB: g3bplus_lab
           G3BPLUS_PG_USER: g3bplus_lab
           G3BPLUS_PG_PASSWORD: g3bplus_local_test_only_password
