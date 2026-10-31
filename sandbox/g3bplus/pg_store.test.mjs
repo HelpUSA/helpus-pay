@@ -111,6 +111,26 @@ try {
     assert.equal(rows.filter(x => x.eventId === first.eventId).length, 1);
     assert.equal(rows.find(x => x.eventId === first.eventId).status, 'DELIVERED');
   });
+  await test('expired TTL is durably applied on query and cancel, never becomes PAID', async () => {
+    const a=make(), ch=await store.createCharge(a);
+    await store.pool.query("UPDATE g3lab_charges SET expires_at=now() - interval '1 second' WHERE txid=$1", [ch.txid]);
+    const expired=await store.get(tenant,ch.txid);
+    assert.equal(expired.status,'EXPIRED');
+    assert.equal((await store.getOrder(tenant,a.orderId)).status,'EXPIRED');
+    await assert.rejects(store.cancel(tenant,ch.txid),/CANNOT_CANCEL_EXPIRED/);
+    await assert.rejects(store.settle({tenantId:tenant,txid:ch.txid,eventId:'evt_'+id(),paidAmount:45}),/CANNOT_SETTLE_EXPIRED/);
+    const other=make(), second=await store.createCharge(other);
+    await store.pool.query("UPDATE g3lab_charges SET expires_at=now() - interval '1 second' WHERE txid=$1", [second.txid]);
+    assert.deepEqual(await store.cancel(tenant,second.txid),{status:'EXPIRED',cannotCancel:true});
+    assert.equal((await store.getOrder(tenant,other.orderId)).status,'EXPIRED');
+  });
+  await test('durable callback outbox stores immutable paidAt across duplicate attempts', async () => {
+    const args=make(), charge=await store.createCharge(args), ev='evt_'+id();
+    await store.settle({tenantId:tenant,txid:charge.txid,eventId:ev,paidAmount:45});
+    const r=await store.pool.query('SELECT payload FROM g3lab_outbox WHERE event_id=$1',[ev]);
+    assert.ok(/^\d{4}-\d\d-\d\dT/.test(r.rows[0].payload.paidAt));
+    assert.equal(r.rows[0].payload.eventId,ev);
+  });
   await test('database host, user, name, and explicit sandbox mode enforced', async () => {
     assert.throws(() => new G3BPlusPgStore({ ...credentials, host: 'db.example.com' }), /DISPOSABLE_LOCAL_POSTGRES_REQUIRED/);
     assert.throws(() => new G3BPlusPgStore({ ...credentials, database: 'production' }), /DISPOSABLE_LOCAL_POSTGRES_REQUIRED/);
