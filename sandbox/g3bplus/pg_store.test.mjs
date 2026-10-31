@@ -81,8 +81,8 @@ try {
     assert.equal(retry.success, false);
     assert.equal(retry.replay, true);
     assert.equal((await store.outbox()).filter(x => x.eventId === ev).length, 1);
-    assert.equal(await store.acknowledgeManualReview(ev), true);
-    assert.equal(await store.acknowledgeManualReview(ev), false);
+    assert.equal(await store.acknowledgeManualReview(tenant, ev), true);
+    assert.equal(await store.acknowledgeManualReview(tenant, ev), false);
   });
   await test('eight cancel versus settle concurrent races maintain consistent order/charge', async () => {
     for (let n = 0; n < 8; n++) {
@@ -101,11 +101,11 @@ try {
   });
   await test('durable outbox retries simulated callback then marks delivered without duplication', async () => {
     // Earlier tests inserted pending callback rows. FIFO pending is correct.
-    const first = await store.drainSyntheticCallbackOnce(async () => false);
+    const first = await store.drainSyntheticCallbackOnce(tenant, async () => false);
     assert.equal(first.handled, true);
     assert.equal(first.delivered, false);
     assert.ok((await store.outbox()).some(x => x.eventId === first.eventId && x.status === 'PENDING' && x.attempts >= 1));
-    const second = await store.drainSyntheticCallbackOnce(async () => true);
+    const second = await store.drainSyntheticCallbackOnce(tenant, async () => true);
     assert.equal(second.eventId, first.eventId);
     assert.equal(second.delivered, true);
     const rows = await store.outbox();
