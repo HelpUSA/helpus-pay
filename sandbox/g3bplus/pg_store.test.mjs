@@ -132,6 +132,29 @@ try {
     assert.ok(/^\d{4}-\d\d-\d\dT/.test(r.rows[0].payload.paidAt));
     assert.equal(r.rows[0].payload.eventId,ev);
   });
+  await test('tenant B cannot claim or drain tenant A callback or acknowledge manual review', async () => {
+    const args = make();
+    const charge = await store.createCharge(args);
+    const eventId = 'evt_' + id();
+    await store.settle({ tenantId: tenant, txid: charge.txid, eventId, paidAmount: 45 });
+    let attempts = 0;
+    const denied = await store.drainSyntheticCallbackOnce('tenant_pizzaria', async () => {
+      attempts++;
+      return true;
+    });
+    assert.deepEqual(denied, { handled: false });
+    assert.equal(attempts, 0);
+    assert.equal((await store.outbox()).find(x => x.eventId === eventId).status, 'PENDING');
+
+    const cancelled = await store.createCharge(make());
+    await store.cancel(tenant, cancelled.txid);
+    const reviewId = 'evt_' + id();
+    await store.settle({ tenantId: tenant, txid: cancelled.txid, eventId: reviewId,
+      paidAmount: 45, allowLateBankEvent: true });
+    assert.equal(await store.acknowledgeManualReview('tenant_pizzaria', reviewId), false);
+    assert.equal((await store.outbox()).find(x => x.eventId === reviewId).status, 'PENDING');
+    assert.equal(await store.acknowledgeManualReview(tenant, reviewId), true);
+  });
   await test('database host, user, name, and explicit sandbox mode enforced', async () => {
     assert.throws(() => new G3BPlusPgStore({ ...credentials, host: 'db.example.com' }), /DISPOSABLE_LOCAL_POSTGRES_REQUIRED/);
     assert.throws(() => new G3BPlusPgStore({ ...credentials, database: 'production' }), /DISPOSABLE_LOCAL_POSTGRES_REQUIRED/);
