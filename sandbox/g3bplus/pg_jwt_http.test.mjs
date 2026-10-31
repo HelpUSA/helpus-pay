@@ -104,6 +104,15 @@ try {
     assert.equal(late.body.action, 'REQUIRES_MANUAL_REVIEW');
     assert.ok((await store.outbox()).some(x => x.eventId === ev && x.kind === 'MANUAL_REVIEW' && x.status === 'PENDING'));
   });
+  await test('expired charge is HTTP 409 on cancel and durable EXPIRED on query', async () => {
+    const ch=await createCharge();
+    await store.pool.query("UPDATE g3lab_charges SET expires_at=now()-interval '1 second' WHERE txid=$1",[ch.txid]);
+    const cancelled=await pay('POST','charges/'+ch.txid+'/cancel',token);
+    assert.equal(cancelled.status,409);
+    assert.equal(cancelled.body.status,'EXPIRED');
+    assert.equal((await pay('GET','charges/'+ch.txid,token)).body.status,'EXPIRED');
+    assert.equal((await store.getOrder(tenant,ch.orderId)).status,'EXPIRED');
+  });
   await test('a separate database connection can read the JWT-created charge after web handlers exit', async () => {
     const c = await createCharge();
     const secondary = new G3BPlusPgStore({
