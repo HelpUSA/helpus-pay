@@ -1,6 +1,6 @@
 /**
- * HelpUS Pay - Backend Mock de PIX Sandbox (Ordem 007 - Remediação G2)
- * Contrato Serverless Vercel / Node compatível com validações financeiras e blindagem criptográfica.
+ * HelpUS Pay - Backend Mock de PIX Sandbox (Ordem 007/008 - Quality Gate G2)
+ * Contrato Serverless Vercel / Node com blindagem estrita de ambiente, tipos e criptografia.
  */
 import crypto from 'crypto';
 
@@ -21,11 +21,11 @@ export interface PixChargeResponse {
   createdAt: string;
 }
 
-// Isolamento de segredos com guard de ambiente produtivo (P0-B)
-const MOCK_SECRET = process.env.SANDBOX_PAYMENT_SECRET || 'test_only_mock_secret_not_for_prod_2026_safe';
+// Isolamento estrito de segredos: restrito a ambiente de desenvolvimento/teste local (P0-4)
+const MOCK_SECRET = 'test_only_mock_secret_not_for_prod_2026_safe';
 
 export function assertSandboxAllowed(): void {
-  if (process.env.NODE_ENV === 'production' && !process.env.ALLOW_SANDBOX_MOCKS) {
+  if (process.env.NODE_ENV === 'production') {
     throw new Error('SECURITY_VIOLATION: Endpoints mock de sandbox são terminantemente proibidos em ambiente de produção.');
   }
 }
@@ -74,7 +74,7 @@ export function createSandboxPixCharge(req: PixChargeRequest): PixChargeResponse
 }
 
 /**
- * Validação segura de assinatura HMAC (P0-C):
+ * Validação segura de assinatura HMAC:
  * Rejeita assinaturas nulas, vazias, malformadas ou com tamanho incorreto sem lançar exceções não tratadas.
  */
 export function verifyWebhookSignature(rawBody: string, signature: string | undefined | null): boolean {

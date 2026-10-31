@@ -2,7 +2,7 @@ name: HelpUS Pay CI (Sandbox Security & Unit Tests)
 
 on:
   push:
-    branches: [ master, feat/* ]
+    branches: [ master, 'feat/**' ]
   pull_request:
     branches: [ master ]
 
@@ -16,13 +16,13 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
 
     - name: Install Dependencies
-      run: npm ci || npm install
+      run: npm ci
 
     - name: Typecheck
-      run: npx tsc --noEmit || true
+      run: npx tsc --noEmit
 
     - name: Run Sandbox PIX Service Tests
-      run: node test/pix_service.test.mjs
+      run: npx tsx test/pix_service.test.mjs

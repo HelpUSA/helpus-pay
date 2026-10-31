@@ -2,7 +2,7 @@ import assert from 'assert';
 import crypto from 'crypto';
 import { createSandboxPixCharge, verifyWebhookSignature, assertSandboxAllowed } from '../api/sandbox/pix_service.ts';
 
-console.log('--- TESTES UNITÁRIOS HELPUS-PAY (SANDBOX) ---');
+console.log('--- TESTES UNITÁRIOS HELPUS-PAY (SANDBOX G2) ---');
 
 // Teste 1: Criação válida de cobrança
 const charge = createSandboxPixCharge({
@@ -45,4 +45,20 @@ assert.strictEqual(verifyWebhookSignature(rawBody, ''), false, 'Assinatura vazia
 assert.strictEqual(verifyWebhookSignature(rawBody, '1234567890abcdef'.repeat(4)), false, 'Hash adulterado deve retornar false');
 console.log('  [PASS] 3. Verificação de assinatura HMAC segura sem exceções');
 
-console.log('--- TODOS OS TESTES DE HELPUS-PAY APROVADOS! ---');
+// Teste 4: Bloqueio incondicional de sandbox em produção (P0-4)
+const origNodeEnv = process.env.NODE_ENV;
+try {
+  process.env.NODE_ENV = 'production';
+  assert.throws(() => {
+    assertSandboxAllowed();
+  }, /SECURITY_VIOLATION/);
+
+  assert.throws(() => {
+    createSandboxPixCharge({ tenantId: 't1', orderId: 'o1', amount: 50, customerPhone: '5583999990000' });
+  }, /SECURITY_VIOLATION/);
+  console.log('  [PASS] 4. Bloqueio incondicional de endpoints sandbox em ambiente de produção');
+} finally {
+  process.env.NODE_ENV = origNodeEnv;
+}
+
+console.log('--- SUITE DE TESTES HELPUS-PAY: 4/4 TESTES APROVADOS COM SUCESSO ---');
