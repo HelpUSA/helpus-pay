@@ -25,6 +25,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Checkout public Auth Ed25519 lab issuer at pinned SHA
+        uses: actions/checkout@v4
+        with:
+          repository: HelpUSA/helpus-auth
+          ref: bba71c761bb447d7e8c460372aee8c30ca0af015
+          path: _g3bplus_auth
+          persist-credentials: false
       - name: Install isolated pg driver (no changes to deployed app)
         run: npm install --prefix sandbox/g3bplus --ignore-scripts --no-fund
       - name: Enforce isolated pg driver audit
@@ -33,7 +40,10 @@ jobs:
         env:
           NODE_ENV: test
           HELPUS_G3BPLUS_LOCAL_ONLY: '1'
+          AUTH_REPO_PATH: ${'${{ github.workspace }}'}/_g3bplus_auth
           G3BPLUS_PG_DB: g3bplus_lab
           G3BPLUS_PG_USER: g3bplus_lab
           G3BPLUS_PG_PASSWORD: g3bplus_local_test_only_password
-        run: node --test sandbox/g3bplus/pg_store.test.mjs
+        run: |
+          node --test sandbox/g3bplus/pg_store.test.mjs
+          node --test sandbox/g3bplus/pg_jwt_http.test.mjs
