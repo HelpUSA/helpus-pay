@@ -14,6 +14,7 @@ const bootstrapSecret = crypto.randomBytes(32).toString('hex');
 const auth = createG3BPlusAuthLab({ bootstrapSecret });
 const aa = await auth.listen();
 const store = new G3BPlusPgStore({
+  host: '127.0.0.1', port: Number(process.env.G3BPLUS_PG_PORT),
   database: process.env.G3BPLUS_PG_DB || 'g3bplus_lab',
   user: process.env.G3BPLUS_PG_USER || 'g3bplus_lab',
   password: process.env.G3BPLUS_PG_PASSWORD || 'g3bplus_local_test_only_password'
@@ -116,6 +117,7 @@ try {
   await test('a separate database connection can read the JWT-created charge after web handlers exit', async () => {
     const c = await createCharge();
     const secondary = new G3BPlusPgStore({
+      host: '127.0.0.1', port: Number(process.env.G3BPLUS_PG_PORT),
       database: process.env.G3BPLUS_PG_DB || 'g3bplus_lab',
       user: process.env.G3BPLUS_PG_USER || 'g3bplus_lab',
       password: process.env.G3BPLUS_PG_PASSWORD || 'g3bplus_local_test_only_password'
